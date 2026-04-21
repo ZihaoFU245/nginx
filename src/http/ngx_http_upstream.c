@@ -2247,6 +2247,11 @@ ngx_http_upstream_send_request(ngx_http_request_t *r, ngx_http_upstream_t *u,
             return;
         }
 
+        if (u->conf->ignore_input) {
+            ngx_http_upstream_process_header(r, u);
+            return;
+        }
+
         ngx_add_timer(c->read, u->conf->read_timeout);
 
         if (c->read->ready) {
@@ -2502,6 +2507,11 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
 #endif
     }
 
+    if (u->conf->ignore_input) {
+        rc = u->process_header(r);
+        goto done;
+    }
+
     for ( ;; ) {
 
         n = c->recv(c, u->buffer.last, u->buffer.end - u->buffer.last);
@@ -2578,6 +2588,12 @@ again:
         }
 
         break;
+    }
+
+done:
+
+    if (rc == NGX_DONE) {
+        return;
     }
 
     if (rc == NGX_HTTP_UPSTREAM_INVALID_HEADER) {
@@ -3314,6 +3330,11 @@ ngx_http_upstream_send_response(ngx_http_request_t *r, ngx_http_upstream_t *u)
         }
 
 #endif
+
+        if (u->conf->ignore_input) {
+            ngx_http_upstream_finalize_request(r, u, 0);
+            return;
+        }
 
         if (u->input_filter == NULL) {
             u->input_filter_init = ngx_http_upstream_non_buffered_filter_init;
